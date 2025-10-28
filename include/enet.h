@@ -641,6 +641,7 @@ extern "C" {
         ENET_HOST_DEFAULT_MTU                  = 1392,
         ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE  = 32 * 1024 * 1024,
         ENET_HOST_DEFAULT_MAXIMUM_WAITING_DATA = 32 * 1024 * 1024,
+        ENET_HOST_DEFAULT_MAXIMUM_RECEIVE_TIME = 10,
 
         ENET_PEER_DEFAULT_ROUND_TRIP_TIME      = 500,
         ENET_PEER_DEFAULT_PACKET_THROTTLE      = 32,
@@ -866,6 +867,7 @@ extern "C" {
         size_t                duplicatePeers;     /**< optional number of allowed peers from duplicate IPs, defaults to ENET_PROTOCOL_MAXIMUM_PEER_ID */
         size_t                maximumPacketSize;  /**< the maximum allowable packet size that may be sent or received on a peer */
         size_t                maximumWaitingData; /**< the maximum aggregate amount of buffer space a peer may use waiting for packets to be delivered */
+        enet_uint32           maximumReceiveTime;  /**< the maximum time the host consumes to receive packets */
         void *                data;               /**< Application private data, may be freely modified */
         ENetPacketCreateCallback packet_create;
         ENetPacketDestroyCallback packet_destroy;
@@ -2842,42 +2844,56 @@ extern "C" {
 
     static int enet_protocol_receive_incoming_commands(ENetHost *host, ENetEvent *event) {
         int packets;
+        enet_uint32 end_time = enet_time_get() + host->maximumReceiveTime;
 
-        for (packets = 0; packets < 256; ++packets) {
-            int receivedLength;
-            ENetBuffer buffer;
+        do {
+            for (packets = 0; packets < 256; ++packets) {
+                int receivedLength;
+                ENetBuffer buffer;
 
-            buffer.data       = host->packetData[0];
-            // buffer.dataLength = sizeof (host->packetData[0]);
-            buffer.dataLength = host->mtu;
+                buffer.data       = host->packetData[0];
+                // buffer.dataLength = sizeof (host->packetData[0]);
+                buffer.dataLength = host->mtu;
 
-            receivedLength    = enet_socket_receive(host->socket, &host->receivedAddress, &buffer, 1);
+                receivedLength    = enet_socket_receive(host->socket, &host->receivedAddress, &buffer, 1);
 
-            if (receivedLength == -2)
-                continue;
+                if (receivedLength == -2)
+                    continue;
 
-            if (receivedLength < 0) {
-                return -1;
-            }
+                if (receivedLength < 0) {
+                    return -1;
+                }
 
-            if (receivedLength == 0) {
-                return 0;
-            }
+                if (receivedLength == 0) {
+                    return 0;
+                }
 
-            host->receivedData       = host->packetData[0];
-            host->receivedDataLength = receivedLength;
+                host->receivedData       = host->packetData[0];
+                host->receivedDataLength = receivedLength;
 
-            host->totalReceivedData += receivedLength;
-            host->totalReceivedPackets++;
+                host->totalReceivedData += receivedLength;
+                host->totalReceivedPackets++;
 
-            if (host->intercept != NULL) {
-                switch (host->intercept(host, (void *)event)) {
+                if (host->intercept != NULL) {
+                    switch (host->intercept(host, (void *)event)) {
+                        case 1:
+                            if (event != NULL && event->type != ENET_EVENT_TYPE_NONE) {
+                                return 1;
+                            }
+
+                            continue;
+
+                        case -1:
+                            return -1;
+
+                        default:
+                            break;
+                    }
+                }
+
+                switch (enet_protocol_handle_incoming_commands(host, event)) {
                     case 1:
-                        if (event != NULL && event->type != ENET_EVENT_TYPE_NONE) {
-                            return 1;
-                        }
-
-                        continue;
+                        return 1;
 
                     case -1:
                         return -1;
@@ -2886,18 +2902,7 @@ extern "C" {
                         break;
                 }
             }
-
-            switch (enet_protocol_handle_incoming_commands(host, event)) {
-                case 1:
-                    return 1;
-
-                case -1:
-                    return -1;
-
-                default:
-                    break;
-            }
-        }
+        } while (enet_time_get() < end_time);
 
         return -1;
     } /* enet_protocol_receive_incoming_commands */
@@ -4662,6 +4667,7 @@ extern "C" {
         host->duplicatePeers                = ENET_PROTOCOL_MAXIMUM_PEER_ID;
         host->maximumPacketSize             = ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE;
         host->maximumWaitingData            = ENET_HOST_DEFAULT_MAXIMUM_WAITING_DATA;
+        host->maximumReceiveTime            = ENET_HOST_DEFAULT_MAXIMUM_RECEIVE_TIME;
         host->compressor.context            = NULL;
         host->compressor.compress           = NULL;
         host->compressor.decompress         = NULL;
