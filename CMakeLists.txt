@@ -18,6 +18,9 @@ endif()
 # -----------------------------
 if(ENET_STATIC)
     add_library(enet_static STATIC test/library.c)
+    if (ENET_USE_MORE_PEERS)
+        target_compile_definitions(enet_static PUBLIC ENET_USE_MORE_PEERS)
+    endif()
 
     if(WIN32)
         target_link_libraries(enet_static PUBLIC winmm ws2_32)
@@ -42,6 +45,10 @@ endif()
 if(ENET_SHARED)
     add_library(enet_shared SHARED test/library.c)
     target_compile_definitions(enet_shared PUBLIC -DENET_DLL)
+
+    if(ENET_USE_MORE_PEERS)
+        target_compile_definitions(enet_shared PUBLIC ENET_USE_MORE_PEERS)
+    endif()
 
     if(WIN32)
         target_link_libraries(enet_shared PUBLIC winmm ws2_32)
