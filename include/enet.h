@@ -4854,7 +4854,7 @@ extern "C" {
     void enet_host_broadcast(ENetHost *host, enet_uint8 channelID, ENetPacket *packet) {
         ENetPeer *currentPeer;
 
-        for (currentPeer = host->peers; currentPeer < &host->peers[host->peerCount]; ++currentPeer) {
+        for (currentPeer = host->peers; currentPeer < &host->peers[host->peerScanLimit]; ++currentPeer) {
             if (currentPeer->state != ENET_PEER_STATE_CONNECTED) {
                 continue;
             }
