@@ -864,6 +864,7 @@ extern "C" {
         ENetHandleConnectCallback handle_connect;
         size_t                connectedPeers;
         size_t                bandwidthLimitedPeers;
+        size_t                peerScanLimit;      /**< upper bound peer index */
         size_t                duplicatePeers;     /**< optional number of allowed peers from duplicate IPs, defaults to ENET_PROTOCOL_MAXIMUM_PEER_ID */
         size_t                maximumPacketSize;  /**< the maximum allowable packet size that may be sent or received on a peer */
         size_t                maximumWaitingData; /**< the maximum aggregate amount of buffer space a peer may use waiting for packets to be delivered */
@@ -1921,6 +1922,12 @@ extern "C" {
         }
         peer->channelCount               = channelCount;
         peer->state                      = ENET_PEER_STATE_ACKNOWLEDGING_CONNECT;
+
+        size_t peerIndex = (size_t)(peer - host->peers);
+        if (peerIndex + 1 > host->peerScanLimit) {
+            host->peerScanLimit = peerIndex + 1;
+        }
+
         peer->connectID                  = command->connect.connectID;
         peer->address                    = host->receivedAddress;
         peer->mtu                        = host->mtu;
@@ -3201,7 +3208,7 @@ extern "C" {
         enet_list_clear (&sentUnreliableCommands);
 
         for (; sendPass <= continueSending; ++ sendPass)
-            for(currentPeer = host->peers; currentPeer < &host->peers[host->peerCount]; ++currentPeer) {
+            for(currentPeer = host->peers; currentPeer < &host->peers[host->peerScanLimit]; ++currentPeer) {
                 if (currentPeer->state == ENET_PEER_STATE_DISCONNECTED || currentPeer->state == ENET_PEER_STATE_ZOMBIE || (sendPass > 0 && ! (currentPeer->flags & ENET_PEER_FLAG_CONTINUE_SENDING))) {
                     continue;
                 }
@@ -3959,6 +3966,14 @@ extern "C" {
         // peer->connectID                     = 0;
         peer->outgoingPeerID                = ENET_PROTOCOL_MAXIMUM_PEER_ID;
         peer->state                         = ENET_PEER_STATE_DISCONNECTED;
+
+        size_t peerIndex = (size_t)(peer - peer->host->peers);
+        if (peerIndex + 1 == peer->host->peerScanLimit) {
+            while (peer->host->peerScanLimit > 0 && peer->host->peers[peer->host->peerScanLimit - 1].state == ENET_PEER_STATE_DISCONNECTED) {
+                --peer->host->peerScanLimit;
+            }
+        }
+
         peer->incomingBandwidth             = 0;
         peer->outgoingBandwidth             = 0;
         peer->incomingBandwidthThrottleEpoch = 0;
@@ -4664,6 +4679,7 @@ extern "C" {
         host->totalQueued                   = 0;
         host->connectedPeers                = 0;
         host->bandwidthLimitedPeers         = 0;
+        host->peerScanLimit                 = 0;
         host->duplicatePeers                = ENET_PROTOCOL_MAXIMUM_PEER_ID;
         host->maximumPacketSize             = ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE;
         host->maximumWaitingData            = ENET_HOST_DEFAULT_MAXIMUM_WAITING_DATA;
@@ -4778,6 +4794,11 @@ extern "C" {
         currentPeer->address      = *address;
         currentPeer->connectID    = enet_host_random(host);
         currentPeer->mtu          = host->mtu;
+
+        size_t peerIndex = (size_t)(currentPeer - host->peers);
+        if (peerIndex + 1 > host->peerScanLimit) {
+            host->peerScanLimit = peerIndex + 1;
+        }
 
         if (host->outgoingBandwidth == 0) {
             currentPeer->windowSize = ENET_PROTOCOL_MAXIMUM_WINDOW_SIZE;
@@ -4967,7 +4988,7 @@ extern "C" {
             dataTotal = 0;
             bandwidth = (host->outgoingBandwidth * elapsedTime) / 1000;
 
-            for (peer = host->peers; peer < &host->peers[host->peerCount]; ++peer) {
+            for (peer = host->peers; peer < &host->peers[host->peerScanLimit]; ++peer) {
                 if (peer->state != ENET_PEER_STATE_CONNECTED && peer->state != ENET_PEER_STATE_DISCONNECT_LATER) {
                     continue;
                 }
@@ -4985,7 +5006,7 @@ extern "C" {
                 throttle = (bandwidth * ENET_PEER_PACKET_THROTTLE_SCALE) / dataTotal;
             }
 
-            for (peer = host->peers; peer < &host->peers[host->peerCount]; ++peer) {
+            for (peer = host->peers; peer < &host->peers[host->peerScanLimit]; ++peer) {
                 enet_uint32 peerBandwidth;
 
                 if ((peer->state != ENET_PEER_STATE_CONNECTED && peer->state != ENET_PEER_STATE_DISCONNECT_LATER) ||
@@ -5030,7 +5051,7 @@ extern "C" {
             }
 
             for (peer = host->peers;
-              peer < &host->peers[host->peerCount];
+              peer < &host->peers[host->peerScanLimit];
               ++peer)
             {
                 if ((peer->state != ENET_PEER_STATE_CONNECTED && peer->state != ENET_PEER_STATE_DISCONNECT_LATER) || peer->outgoingBandwidthThrottleEpoch == timeCurrent) {
@@ -5062,7 +5083,7 @@ extern "C" {
                     needsAdjustment = 0;
                     bandwidthLimit  = bandwidth / peersRemaining;
 
-                    for (peer = host->peers; peer < &host->peers[host->peerCount]; ++peer) {
+                    for (peer = host->peers; peer < &host->peers[host->peerScanLimit]; ++peer) {
                         if ((peer->state != ENET_PEER_STATE_CONNECTED && peer->state != ENET_PEER_STATE_DISCONNECT_LATER) ||
                             peer->incomingBandwidthThrottleEpoch == timeCurrent
                         ) {
@@ -5082,7 +5103,7 @@ extern "C" {
                 }
             }
 
-            for (peer = host->peers; peer < &host->peers[host->peerCount]; ++peer) {
+            for (peer = host->peers; peer < &host->peers[host->peerScanLimit]; ++peer) {
                 if (peer->state != ENET_PEER_STATE_CONNECTED && peer->state != ENET_PEER_STATE_DISCONNECT_LATER) {
                     continue;
                 }
