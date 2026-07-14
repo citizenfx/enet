@@ -635,8 +635,8 @@ extern "C" {
     } ENetPeerState;
 
     enum {
-        ENET_HOST_RECEIVE_BUFFER_SIZE          = 256 * 1024,
-        ENET_HOST_SEND_BUFFER_SIZE             = 256 * 1024,
+        ENET_HOST_RECEIVE_BUFFER_SIZE          = 16 * 1024 * 1024,
+        ENET_HOST_SEND_BUFFER_SIZE             = 16 * 1024 * 1024,
         ENET_HOST_BANDWIDTH_THROTTLE_INTERVAL  = 1000,
         ENET_HOST_DEFAULT_MTU                  = 1392,
         ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE  = 32 * 1024 * 1024,
