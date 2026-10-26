@@ -8,9 +8,14 @@ option(ENET_STATIC "Build enet as a static library" ON)
 option(ENET_SHARED "Build enet as a shared library" OFF)
 option(ENET_TEST  "Build enet tests" ON)
 option(ENET_USE_MORE_PEERS  "Build enet with up to 65k peers support" OFF)
+option(ENET_ENABLE_PEER_TIMEOUT_CALLBACK "Build enet with callback support for timeouts" OFF)
 
 if (ENET_USE_MORE_PEERS)
     add_definitions(-DENET_USE_MORE_PEERS)
+endif()
+
+if (ENET_ENABLE_PEER_TIMEOUT_CALLBACK)
+    add_definitions(-DENET_ENABLE_PEER_TIMEOUT_CALLBACK)
 endif()
 
 # -----------------------------
@@ -20,6 +25,10 @@ if(ENET_STATIC)
     add_library(enet_static STATIC test/library.c)
     if (ENET_USE_MORE_PEERS)
         target_compile_definitions(enet_static PUBLIC ENET_USE_MORE_PEERS)
+    endif()
+
+    if (ENET_ENABLE_PEER_TIMEOUT_CALLBACK)
+        target_compile_definitions(enet_static PUBLIC ENET_ENABLE_PEER_TIMEOUT_CALLBACK)
     endif()
 
     if(WIN32)
@@ -48,6 +57,10 @@ if(ENET_SHARED)
 
     if(ENET_USE_MORE_PEERS)
         target_compile_definitions(enet_shared PUBLIC ENET_USE_MORE_PEERS)
+    endif()
+
+    if (ENET_ENABLE_PEER_TIMEOUT_CALLBACK)
+        target_compile_definitions(enet_shared PUBLIC ENET_ENABLE_PEER_TIMEOUT_CALLBACK)
     endif()
 
     if(WIN32)

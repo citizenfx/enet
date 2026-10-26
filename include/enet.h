@@ -775,6 +775,11 @@ extern "C" {
     /** Callback for intercepting received raw UDP packets. Should return 1 to intercept, 0 to ignore, or -1 to propagate an error. */
     typedef int (ENET_CALLBACK * ENetInterceptCallback)(struct _ENetHost *host, void *event);
 
+#ifdef ENET_ENABLE_PEER_TIMEOUT_CALLBACK
+    /** Callback for when a client times out. */
+    typedef bool (ENET_CALLBACK * ENetHandlePeerTimeout)(struct _ENetHost *host, ENetPeer* address);
+#endif
+
     /** Callback for handling connects. Should return TRUE to accept, FALSE to block. */
     typedef bool (ENET_CALLBACK * ENetHandleConnectCallback)(struct _ENetHost *host, struct _ENetAddress* address, enet_uint32 data);
 
@@ -791,7 +796,7 @@ extern "C" {
     typedef void (ENET_CALLBACK *ENetChannelsDestroyCallback)(ENetPeer *peer, ENetChannel* channels, size_t channelCount);
 
     /** Callback for creating outgoing commands. Should return NULL on failure. */
-    typedef ENetOutgoingCommand * (ENET_CALLBACK *ENetOutgoingCommndCreateCallback)(ENetPeer *peer);
+    typedef ENetOutgoingCommand * (ENET_CALLBACK *ENetOutgoingCommandCreateCallback)(ENetPeer *peer);
 
     /** Callback for destroying outgoing commands. */
     typedef void (ENET_CALLBACK *ENetOutgoingCommandDestroyCallback)(ENetPeer *peer, ENetOutgoingCommand* command);
@@ -874,7 +879,7 @@ extern "C" {
         ENetPacketDestroyCallback packet_destroy;
         ENetChannelsCreateCallback channels_create;
         ENetChannelsDestroyCallback channels_destroy;
-        ENetOutgoingCommndCreateCallback outgoing_command_create;
+        ENetOutgoingCommandCreateCallback outgoing_command_create;
         ENetOutgoingCommandDestroyCallback outgoing_command_destroy;
         ENetIncomingCommandCreateCallback incoming_command_create;
         ENetIncomingCommandDestroyCallback incoming_command_destroy;
@@ -882,6 +887,9 @@ extern "C" {
         ENetAcknowledgementDestroyCallback acknowledgement_destroy;
         ENetFragmentsCreateCallback fragments_create;
         ENetFragmentsDestroyCallback fragments_destroy;
+#ifdef ENET_ENABLE_PEER_TIMEOUT_CALLBACK
+        ENetHandlePeerTimeout handle_timeout;
+#endif
     } ENetHost;
 
     /**
@@ -1739,6 +1747,12 @@ extern "C" {
         if (peer->state >= ENET_PEER_STATE_CONNECTION_PENDING) {
            host->recalculateBandwidthLimits = 1;
         }
+
+#ifdef ENET_ENABLE_PEER_TIMEOUT_CALLBACK
+        if (host->handle_timeout != NULL) {
+            host->handle_timeout(host, peer);
+        }
+#endif
 
         if (peer->state != ENET_PEER_STATE_CONNECTING && peer->state < ENET_PEER_STATE_CONNECTION_SUCCEEDED) {
             enet_peer_reset (peer);
@@ -4701,6 +4715,9 @@ extern "C" {
         host->acknowledgement_destroy       = NULL;
         host->fragments_create              = NULL;
         host->fragments_destroy             = NULL;
+#ifdef ENET_ENABLE_PEER_TIMEOUT_CALLBACK
+        host->handle_timeout                = NULL;
+#endif
 
         enet_list_clear(&host->dispatchQueue);
 
